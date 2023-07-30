@@ -1,10 +1,12 @@
 * Pre-installed dependecies (required)
 
-  * docker
+  * docker desktop
 
   * node js v16.19.1
 
-## How to run the app
+**NOTE**: for the application to work properly, please run both commands. *(`run the app` and also `run the database + rabbitmq`)*
+
+## How to `run the app`
 
 ```
   1. ==> yarn install
@@ -12,7 +14,7 @@
   2. ==> yarn listen:dev
 ```
 
-## How to run database and rabbitmq
+## How to `run the database + rabbitmq`
 
 ```
 docker compose up
