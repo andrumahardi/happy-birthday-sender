@@ -1,7 +1,7 @@
 import amqplib, { Channel, Connection } from "amqplib";
 import dotenv from "dotenv";
 import cron from "node-cron";
-import { CONSTANTS } from "../constants";
+import { CONSTANTS, supportedLocales } from "../constants";
 import { format } from "date-fns";
 import axios from "axios";
 
@@ -11,6 +11,8 @@ type User = {
   id: number;
   firstName: string;
   lastName: string;
+  region: string;
+  city: string;
 };
 
 type Content = {
@@ -18,8 +20,8 @@ type Content = {
 };
 
 const localInstance = axios.create({
-  baseURL: process.env.HOST
-})
+  baseURL: process.env.HOST,
+});
 
 export async function connect() {
   let interval = null;
@@ -33,32 +35,7 @@ export async function connect() {
       durable: true,
     });
 
-    task = cron.schedule("* * * * *", () => {
-      const date = new Date().getDate();
-      const month = format(new Date(), "MMMM");
-
-      localInstance
-        .get(`/users?date=${date}&month=${month}`)
-        .then((res) => {
-          if ((res.data.users || []).length) {
-            res.data.users.forEach((user: User) => {
-              channel.sendToQueue(
-                CONSTANTS.QUEUE_NAME,
-                Buffer.from(
-                  JSON.stringify({ name: `${user.firstName} ${user.lastName}` })
-                ),
-                {
-                  persistent: true,
-                }
-              );
-            });
-          } else {
-            console.log(res);
-            throw new Error(CONSTANTS.NOT_FOUND);
-          }
-        })
-        .catch(console.log);
-    });
+    task = cron.schedule("0 0 * * *", () => dailyScheduler(channel));
 
     channel.consume(
       CONSTANTS.QUEUE_NAME,
@@ -82,4 +59,54 @@ export async function connect() {
     task && task.stop();
     console.log(error);
   }
+}
+
+function dailyScheduler(channel: Channel) {
+  const date = new Date().getDate();
+  const month = format(new Date(), "MMMM");
+
+  localInstance
+    .get(`/users?date=${date}&month=${month}`)
+    .then((res) => {
+      if ((res.data.users || []).length) {
+        sendQueueBasedOnTimeZone(channel, res.data.users || []);
+      } else {
+        throw new Error(CONSTANTS.NOT_FOUND);
+      }
+    })
+    .catch(console.log);
+}
+
+function sendQueueBasedOnTimeZone(channel: Channel, users: User[]) {
+  users.forEach((user: User) => {
+    const regions = supportedLocales.filter((locale) =>
+      locale.toLowerCase().includes(user.region.toLowerCase())
+    );
+
+    const timezone =
+      regions.find(
+        (region) =>
+          region.split("/")[1].toLowerCase().replace(/[\W_]/gi, "") ===
+          user.city.toLowerCase().replace(/[\W_]/gi, "")
+      ) || regions[0];
+
+    cron.schedule(
+      "0 9 * * *",
+      () => {
+        channel.sendToQueue(
+          CONSTANTS.QUEUE_NAME,
+          Buffer.from(
+            JSON.stringify({ name: `${user.firstName} ${user.lastName}` })
+          ),
+          {
+            persistent: true,
+          }
+        );
+      },
+      {
+        scheduled: true,
+        timezone,
+      }
+    );
+  });
 }
