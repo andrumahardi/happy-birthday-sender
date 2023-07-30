@@ -1,8 +1,10 @@
-* Pre-installed dependecies (required)
+* Pre-installed dependecies (**REQUIRED**)
 
   * docker desktop
 
   * node js v16.19.1
+
+  * yarn package manager (`cmd`: npm install -g yarn)
 
 **NOTE**: for the application to work properly, please run both commands. *(`run the app` and also `run the database + rabbitmq`)*
 
